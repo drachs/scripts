@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# Manage Symbols, Collect Flame Data
+
+# Scans the squid binary and retrieves a list of packages that are supplying its shared libraries
+# krb5 is included manually because it looks like a package error prevents it from being resolved automatically
+# glibc and openssl included manually because they're critical and seeing them hard coded makes me feel better
+#BINARY=/usr/local/squid/sbin/squid
+BINARY=/usr/local/sbin/unbound
+ID=$(wget -q -O - http://169.254.169.254/latest/meta-data/instance-id)
+
+if [ ! -z "$2" ]; then
+	if [ -x "$2" ]; then
+		BINARY="$2"
+	else
+		echo Could not find executable at $2
+		exit
+	fi
+fi 
+
+echo Scanning $BINARY
+BIN_PKG="$(rpm --qf "%{NAME}\n" -qf $BINARY)"
+if [ ! $? -eq 0 ]; then
+	echo Binary not from a system package
+	BIN_PKG=""
+fi
+
+PACKAGES="kernel glibc openssl krb5 krb5-debuginfo $BIN_PKG $(rpm --qf '%{NAME}\n' -qf $(ldd $BINARY | awk '{print($3)}' | grep "/") | grep -v "not owned by" | sort -u | tr '\n' ' ')"
+echo "Identified Packages: $PACKAGES"
+
+install_debuginfo () {
+
+	# debuginfo-install is part of the underlying linux distro, it's job is to fetch symbols
+	echo Searching for debugging symbols...
+	debuginfo-install -y $PACKAGES | tee /tmp/flame.tmp
+	
+	# Check the symbolization for errors
+	ERROR="$(cat /tmp/flame.tmp | grep -i "yum lock")"
+
+	if [ ! -z "$ERROR" ]; then
+		echo -e "\033[1;31mFAIL\033[m" - Something else has the yum lock? Try again.
+		exit
+	fi
+
+	# Check the symbolization for errors
+	ERROR="$(cat /tmp/flame.tmp | grep -i "could not find")"
+
+	if [ ! -z "$ERROR" ]; then
+		echo -e "\033[1;31mFAIL\033[m" - Some debug symbols could not be installed - probably need to try --symbolize
+		return
+	fi
+		
+	echo -e "\033[1;32mSUCCESS\033[m" - Debug Symbols Good
+
+}
+
+install_tools() {
+	# Install the Linux Perf analysis engine
+	yum -y -q install perf.x86_64
+
+	# Install Flame Graph Scripts
+	if [ ! -x /home/ec2-user/FlameGraph ]; then
+		git clone https://github.com/brendangregg/FlameGraph /home/ec2-user/FlameGraph
+	fi
+}
+
+if [ "$1" == "--apache-mods" ]; then
+	# Scan the apache modules
+	PACKAGES="$(rpm --qf '%{NAME}\n' -qf $(ls -ad1 /etc/httpd/modules/* | grep "/") | grep -v "not owned by" | sort -u | tr '\n' ' ')"
+	echo "Apache Module Packages: $PACKAGES"
+	yum -y -q install $PACKAGES
+	install_debuginfo
+	exit
+fi
+	
+
+if [ "$1" == "--symbolize" ]; then
+	install_tools
+		
+	# Update all the packages because debug symbols for non-current packages are frequently not available
+	# This is why squid has to be restarted, the running squid won't be relinked with the new libraries.
+	echo Upgrading involved packages...
+	yum -y -q install $PACKAGES
+	# Get all the debug symbols associated with these packages
+	install_debuginfo
+
+	echo -e "\n\033[1;4;31mIf anything updated, you need to restart squid for it to take affect\033[m"
+
+	exit
+fi
+
+#if [ "$1" == "--full-symbolize" ]; then
+#	install_tools
+#
+#	yum -y update
+#
+#	debuginfo-install -y '*'	
+#
+#	echo -e "\n\033[1;4;31mIf anything updated, you need to restart squid for it to take affect\033[m"
+#
+#	exit
+#fi
+
+if [ "$1" != "--collect" ]; then
+	echo Tool to help install debug symbols
+	echo 
+	echo Collect flame data:
+	echo "./flame --collect  [/path/to/binary]"
+	echo
+	echo If you get a symbol installation failure, you probably need to try --symbolize 
+	echo and restart squid.  This can be avoided by baking good symbols into the ec2
+	echo image.
+	echo "./flame --symbolize [/path/to/binary]"
+	echo
+	exit
+fi
+
+install_tools
+install_debuginfo 
+
+while true; do
+	echo Collecting data...
+	# Dwarf Collect
+	nice -n -1 perf record -F 99 -ag --call-graph=dwarf,16384 --proc-map-timeout=1000 -- sleep 30 
+	# Frame Pointer Collect
+	#nice -n -1 perf record -F 99 -ag --proc-map-timeout=1000 -- sleep 30 
+	echo Graphing data...
+
+	# Flame graph stack collapse
+	perf script | /home/ec2-user/FlameGraph/stackcollapse-perf.pl > out.perf-folded
+
+	# Modifed linux stack collapse to provide info on bad traces
+	#perf script -s securly_stackcollapse.py > out.perf-folded
+
+	# Linux stack collapse
+	#perf script report stackcollapse > out.perf-folded
+
+	# Some Brendon Gregg hack, Seems to give us cleaner data, but I think it might just be discarding stuff it doesn't understand - Needs study
+	#perf report --stdio --no-children -n -g folded,0,caller,count -s comm | awk '/^ / { comm = $3 } /^[0-9]/ { print comm ";" $2, $1 }' > out.perf-folded
+
+	# convert the collapsed stack to a flame graph
+	cat out.perf-folded | /home/ec2-user/FlameGraph/flamegraph.pl > flame.$(date +"%FT%T").svg
+	# Temporary file
+	rm out.perf-folded perf.data
+	# Sync to bucket
+	aws s3 sync . s3://david-hinkle/flamesync/$ID
+done
+
