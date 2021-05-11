@@ -143,6 +143,6 @@ while true; do
 	# Temporary file
 	rm out.perf-folded perf.data
 	# Sync to bucket
-	aws s3 sync . s3://david-hinkle/flamesync/$ID
+	aws s3 sync --delete . s3://david-hinkle/flamesync/$ID
 done
 
