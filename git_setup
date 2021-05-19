@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Set up a git repo for my use
+
+git config user.name "David Hinkle"
+git config user.email "david.hinkle@securly.com"
+git config alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+git config alias.lg2 "log --color --graph --pretty=format:'%Cred%h%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+
+
