@@ -1,9 +1,11 @@
 #!/bin/bash
 
+# Private corp hosted repo protected via SSH Key Access
 if [ ! -d ~/hinkle_credentials ]; then
 	git clone git@g.securly.com:davidhinkle/credentials.git	~/hinkle_credentials 2> /dev/null 1> /dev/null
 fi
 
+# Encrypted with a personal secret (gpg -c file)
 if [ "$1" == "PROD" ]; then
 	gpg -q -o- ~/hinkle_credentials/hinkleawscli-prod.pgp 2> /dev/null
 else	
