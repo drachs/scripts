@@ -1,0 +1,5 @@
+Cloudwatch command:
+
+aws cloudformation update-stack --stack-name MyNetwork --template-body file://microservice.yml --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation create-change-set --stack-name MyNetwork --change-set-name Test --template-body file://microservice.yml --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation delete-stack --stack-name MyNetwork 

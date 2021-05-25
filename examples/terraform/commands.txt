@@ -1,0 +1,3 @@
+Terraform Commands:
+terraform plan -out plan
+terraform apply plan
