@@ -2,8 +2,20 @@
 
 # Set up a git repo for my use
 
-git config user.name "David Hinkle"
-git config user.email "david.hinkle@securly.com"
+if [ "$1" == "pro" ]; then
+	echo Using pro identity 
+	git config user.email "drhinklejr@gmail.com"
+	git config user.name "David Hinkle"
+elif [ "$1" == "personal" ]; then
+	echo Using personal identity
+	git config user.email "drachs@gmail.com"
+	git config user.name "Drachs"
+else [ -z ${1+x} ] || [ "$1" == "work" ] 
+	echo Using work identity
+	git config user.email "david.hinkle@securly.com"
+	git config user.name "David Hinkle"
+fi
+
 git config alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 git config alias.lg2 "log --color --graph --pretty=format:'%Cred%h%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
