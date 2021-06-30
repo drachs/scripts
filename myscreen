@@ -1,0 +1,24 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+TMPDIR="${DIR}/tmp"
+
+ln -sf $SSH_AUTH_SOCK $TMPDIR/ssh-screen
+
+if [[ $EUID -ne 0 ]]; then
+	sudo -i $0
+	exit
+fi
+
+echo Hello Dave!
+
+cd $(dirname $0)
+echo $DISPLAY > $TMPDIR/x11display
+
+screen -r -dd -S hinkle
+
+if [ $? -ne 0 ]; then
+	export SSH_AUTH_SOCK=$TMPDIR/ssh-screen
+	export PATH=$PATH:/usr/local/bin
+	screen -S hinkle
+fi
