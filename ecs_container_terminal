@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ "$1" == "-i" ]; then
+	curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+	unzip awscliv2.zip
+	sudo ./aws/install	
+fi
+
+/usr/local/bin/aws ecs execute-command  \
+    --region us-west-1 \
+    --cluster aichat \
+    --task 4e63e1fc410c4832adb89f308e2e5d07 \
+    --container sample-fargate-app \
+    --command "/bin/bash" \
+    --interactive

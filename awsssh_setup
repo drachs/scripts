@@ -5,7 +5,7 @@ yum install -y amazon-ssm-agent aws-cli
 curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm" -o "/tmp/session-manager-plugin.rpm"
 yum install -y /tmp/session-manager-plugin.rpm
 
-cat << EOF >> /root/.ssh/config
+cat << EOF >> ~/.ssh/config
 # SSH over Session Manager
 host i-* mi-*
 ProxyCommand sh -c "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
